@@ -22,8 +22,11 @@ const Canvas = ({ height, width }: { height: number; width: number }) => {
   test.push({leftTop:{x:width-(conf.BOUNDLEFT),y:0}, rightBottom:{x:width,y:height}}) // Mur de droite
   test.push({leftTop:{x:0,y:height-conf.BOUNDTOP}, rightBottom:{x:width,y:height}}) // Mur du bas
 
+  const tirs = new Array(0)
+  const debris = new Array(0)
+  const ennemisQuiTire = new Array(0)
   const listObjectC = new Array(0)
-  listObjectC.push({center:{x:500, y:350}, radius : 25})
+  listObjectC.push({coord:{x:500, y:350, dx:0, dy:0}, radius : 25})
  
   const listObjectR = new Array(0)
   listObjectR.push({leftTop:{x:1000, y:400}, rightBottom : {x:1100, y:500}})
@@ -57,7 +60,12 @@ const Canvas = ({ height, width }: { height: number; width: number }) => {
     objectR: listObjectR,
     
     size: { height: height - conf.BOUNDTOP, width: width - conf.BOUNDLEFT  },
-    endOfGame: true,
+    endOfGame: false,
+    tirs: tirs,
+    shootCooldownHero : 0,
+    ennemyDelay : 0,
+    debris : debris,
+    ennemisQuiTire : ennemisQuiTire
   }
 
   const ref = useRef<any>()
@@ -65,10 +73,10 @@ const Canvas = ({ height, width }: { height: number; width: number }) => {
 
   const iterate = (ctx: CanvasRenderingContext2D) => {
     state.current = step(state.current)
-    state.current.endOfGame = !endOfGame(state.current)
     render(ctx)(state.current)
     if (!state.current.endOfGame) requestAnimationFrame(() => iterate(ctx))
-  }
+  } 
+
   const onClick = (e: PointerEvent) => {
     state.current = click(state.current)(e)
   }

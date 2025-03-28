@@ -1,5 +1,5 @@
 import * as conf from './conf'
-import { State, Point } from './state'
+import { State, Point, Coord } from './state'
 const COLORS = {
   RED: '#ff0000',
   GREEN: '#00ff00',
@@ -48,18 +48,18 @@ const drawCirle = (
 ) => {
   ctx.beginPath()
   ctx.fillStyle = color
-  ctx.arc(x, y, conf.RADIUS, 0, 2 * Math.PI)
+  ctx.arc(x, y, 5, 0, 2 * Math.PI)
   ctx.fill()
 }
 
 const drawObjCircle = (
   ctx: CanvasRenderingContext2D,
-  { center, radius }: { center: Point; radius: number },
+  { coord, radius }: { coord: Coord; radius: number },
   color: string
 ) => {
   ctx.beginPath()
   ctx.fillStyle = color
-  ctx.arc(center.x, center.y, radius, 0, 2 * Math.PI)
+  ctx.arc(coord.x, coord.y, radius, 0, 2 * Math.PI)
   ctx.fill()
 }
 
@@ -107,17 +107,25 @@ export const render = (ctx: CanvasRenderingContext2D) => (state: State) => {
   state.pos.map((c) =>
     drawCirle(ctx, c.coord, computeColor(c.life, conf.BALLLIFE, COLORS.GREEN))
   )
-  state.limite.map( (w) =>
-    drawWall(ctx, w, 245, 184, 135)
-  )
+  
   state.objectC.map( (oc) => 
     drawObjCircle(ctx, oc, COLORS.RED)
   )
   state.objectR.map( (or) => 
     drawWall(ctx, or, 255, 0, 0)
   )
+  state.tirs.map( (tir) => 
+    drawCirle (ctx, tir.coord, COLORS.GREEN))
+
+  state.debris.map( (debri) =>
+    drawObjCircle(ctx, debri, COLORS.RED)
+  )
   
-  drawHero(ctx, state.hero.coord, state.hero.hitBox, 0, 255, 0);
+  drawHero(ctx, state.hero.coord, state.hero.hitBox,  0, 255, 0);
+
+  state.limite.map( (w) =>
+    drawWall(ctx, w, 245, 184, 135)
+  )
   
   if (state.endOfGame) {
     const text = 'END'

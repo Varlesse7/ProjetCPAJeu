@@ -1,15 +1,18 @@
 import { useEffect } from 'react';
 import * as conf from './conf'
-type Coord = { x: number; y: number; dx: number; dy: number }
+export type Coord = { x: number; y: number; dx: number; dy: number }
 export type Point = {x:number; y: number}
 type Ball = { coord: Coord; life: number; invincible?: number }
 type Size = { height: number; width: number }
 type Wall = { leftTop:Point, rightBottom:Point}
-type ObjectCercle = {center: Point, radius: number}
-type Rectangle = {p1: Point, width:number, height:number}
+type ObjectCercle = {coord: Coord; radius: number; life: number}
+type Rectangle = {p1: Coord, width:number, height:number, life: number}
 type Hero = {coord: Coord, hitBox: {hx: number, hy: number}, vie: number, force : number}
 
-// Mur de droite = 1 et Mur haut = 0 et Mur gauche = 2   
+// Mur de droite = 1 et Mur haut = 0 et Mur gauche = 2  
+
+const randomInt = (max: number) => Math.floor(Math.random() * max)
+const randomSign = () => Math.sign(Math.random() - 0.5)
 
 export type State = {
   hero : Hero
@@ -19,35 +22,40 @@ export type State = {
   objectR: Array<Wall>
   size: Size
   endOfGame: boolean
+  tirs: Array<Ball>
+  debris: Array<ObjectCercle>
+  ennemisQuiTire: Array<Rectangle>
+  shootCooldownHero : number
+  ennemyDelay : number
 }
 
 const dist2 = (o1: Coord, o2: Coord) =>
   Math.pow(o1.x - o2.x, 2) + Math.pow(o1.y - o2.y, 2)
 
 const iterate = (bound: Size) => (ball: Ball) => {
-  const invincible = ball.invincible ? ball.invincible - 1 : ball.invincible
-  const coord = ball.coord
-  const dx =
-    (coord.x + conf.RADIUS > bound.width || coord.x < conf.RADIUS || coord.x + conf.RADIUS < conf.BOUNDLEFT
-      ? -coord.dx
-      : coord.dx) * conf.FRICTION
-  const dy =
-    (coord.y + conf.RADIUS > bound.height || coord.y < conf.RADIUS || coord.y + conf.RADIUS < conf.BOUNDTOP
-      ? -coord.dy
-      : coord.dy) * conf.FRICTION
-  if (Math.abs(dx) + Math.abs(dy) < conf.MINMOVE)
-    return { ...ball, invincible, coord: { ...coord, dx: 0, dy: 0 } }
+  
   return {
-    ...ball,
-    invincible,
+    ...ball, 
     coord: {
-      x: coord.x + dx,
-      y: coord.y + dy,
-      dx,
-      dy,
+      ...ball.coord,
+      x: ball.coord.x + ball.coord.dx,
+      y: ball.coord.y + ball.coord.dy,
     },
   }
 }
+
+const mouvDebris = (bound: Size) => (ball: ObjectCercle) => {
+  
+  return {
+    ...ball, 
+    coord: {
+      ...ball.coord,
+      x: ball.coord.x + ball.coord.dx,
+      y: ball.coord.y + ball.coord.dy,
+    },
+  }
+}
+
 
 export const click =
   (state: State) =>
@@ -67,8 +75,23 @@ export const click =
 
 
 const collideBOC = (b:Coord, oc:ObjectCercle) => 
-  dist2(b, {x: oc.center.x, y: oc.center.y, dx: 0, dy: 0}) < Math.pow(conf.RADIUS+oc.radius, 2)
+  dist2(b, {x: oc.coord.x, y: oc.coord.y, dx: 0, dy: 0}) < Math.pow(conf.RADIUS+oc.radius, 2)
 
+const collideROC = (h: Hero, oc: ObjectCercle) => {
+  const hx = h.coord.x;
+  const hy = h.coord.y;
+  const hw = h.hitBox.hx;
+  const hh = h.hitBox.hy;
+  const cx = oc.coord.x;
+  const cy = oc.coord.y;
+  const cr = oc.radius;
+  const nearestX = Math.max(hx - hw / 2, Math.min(cx, hx + hw / 2));
+  const nearestY = Math.max(hy - hh / 2, Math.min(cy, hy + hh / 2));
+  const distX = cx - nearestX;
+  const distY = cy - nearestY;
+  return (distX * distX + distY * distY) <= (cr * cr);
+};
+  
   
 const collideBORR = (b:Coord, or:Wall) => 
   ((dist2(b, {x: or.rightBottom.x, y: or.leftTop.y, dx: 0, dy: 0}) < Math.pow(conf.RADIUS, 2)) || 
@@ -116,8 +139,8 @@ const collideboing = (p1: Coord, p2: Coord) => {
 }
 
 const collideboingS = (p1: Coord, p2:ObjectCercle) => {
-  const nx = (p2.center.x-p1.x) / (2 * conf.RADIUS)
-  const ny = (p2.center.y-p1.y) / (2 * conf.RADIUS)
+  const nx = (p2.coord.x-p1.x) / (2 * conf.RADIUS)
+  const ny = (p2.coord.y-p1.y) / (2 * conf.RADIUS)
   const gx = -ny
   const gy = nx
 
@@ -127,6 +150,7 @@ const collideboingS = (p1: Coord, p2:ObjectCercle) => {
   p1.dy -= 2 * ny  + gy * v1g
   p1.x += p1.dx
   p1.y += p1.dy
+  
 }
 
 export const step = (state: State) => {
@@ -168,9 +192,99 @@ export const step = (state: State) => {
     })
   })
 
+  // Gestion du délai de tir
+  const shootingDelay = 60; 
+
+  if (state.shootCooldownHero <= 0) {
+    state.tirs.push({
+      life: 1,
+      coord: {
+        x: state.hero.coord.x,
+        y: state.hero.coord.y,
+        dx: 0,
+        dy: -2,
+      },
+    });
+    state.shootCooldownHero = shootingDelay;
+  } else {
+    state.shootCooldownHero--;
+  }
+
+  //Gestion du délai d'apparition d'ennemis
+  const appearanceDelay = 100;
+  if (state.ennemyDelay <= 0) {
+    
+    switch (randomInt(2)){
+
+      case 1 :
+        //possibilité d'algo de gravité
+        state.debris.push(
+          {coord:{
+            x: randomInt(window.innerWidth - (120+(2*conf.BOUNDLEFT))) + (60+conf.BOUNDLEFT),
+            y: 0,
+            dx:0, 
+            dy:2},
+          radius : 25,
+          life : 2 // faire un truc en fonction du rayon pour la vie
+        });
+        break;
+
+      case 2 :
+        state.ennemisQuiTire.push(
+          {p1: {
+            x: randomInt(window.innerWidth - (120+(2*conf.BOUNDLEFT))) + (60+conf.BOUNDLEFT),
+            y: 100,
+            dx:4 * randomSign(), 
+            dy:0},
+          width:50, 
+          height:50, 
+          life: 2 //possibilité de modifier la vie
+          }
+        )
+        break;
+
+      default : 
+        break
+
+    }
+
+    
+    state.ennemyDelay = appearanceDelay;
+  } else {
+    state.ennemyDelay--;
+  }
+
+  //Collision débris - tir
+  state.tirs.map((p1) => {
+    state.debris.map((c) => {
+      if (collideBOC(p1.coord, c)){
+        p1.life--
+        c.life--
+      }
+    })
+  })
+
+  if(state.hero.vie == 0) {
+    state.hero.coord.x =1
+    state.endOfGame = true
+  }
+
+  //Collision debri-héros
+  state.debris.map((d) => {
+    if (collideROC(state.hero,d)) {
+      d.life = 0
+      state.hero.vie --;
+    }
+
+  })
+
+
   return {
     ...state,
     pos: state.pos.map(iterate(state.size)).filter((p) => p.life > 0),
+    tirs: state.tirs.map(iterate(state.size)).filter((p) => p.coord.y > 0 && p.life > 0),
+    debris: state.debris.map(mouvDebris(state.size)).filter((p) => p.coord.y < window.innerHeight && p.life > 0),
+    endOfGame: state.endOfGame,
   }
 }
 
@@ -184,6 +298,7 @@ export const handleKeyPress =
         const hx = state.hero.hitBox.hx/2;
         const hy = state.hero.hitBox.hy/2;
         switch (event.key) {
+          case "Z":
           case "z":
             console.log(state.limite)
             
