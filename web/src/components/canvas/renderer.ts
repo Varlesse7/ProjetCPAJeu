@@ -4,6 +4,7 @@ const COLORS = {
   RED: '#ff0000',
   GREEN: '#00ff00',
   BLUE: '#0000ff',
+  ORANGE: '#ffA500'
 }
 
 const toDoubleHexa = (n: number) =>
@@ -63,6 +64,21 @@ const drawObjCircle = (
   ctx.fill()
 }
 
+const drawObjRect = (
+  ctx: CanvasRenderingContext2D,
+  { coord, width, height }: { coord: Coord, width : number, height : number  },
+  color: string
+) => {
+  ctx.beginPath()
+  ctx.fillStyle = color
+  ctx.fillRect(coord.x, coord.y, width, height)
+  ctx.fill()
+
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "black";
+  ctx.strokeRect(coord.x, coord.y, width , height);
+}
+
 const drawWall = (
   ctx: CanvasRenderingContext2D,
   {leftTop, rightBottom}: {leftTop:Point, rightBottom:Point},
@@ -104,21 +120,19 @@ const computeColor = (life: number, maxLife: number, baseColor: string) =>
 export const render = (ctx: CanvasRenderingContext2D) => (state: State) => {
   clear(ctx)
 
-  state.pos.map((c) =>
-    drawCirle(ctx, c.coord, computeColor(c.life, conf.BALLLIFE, COLORS.GREEN))
-  )
-  
-  state.objectC.map( (oc) => 
-    drawObjCircle(ctx, oc, COLORS.RED)
-  )
-  state.objectR.map( (or) => 
-    drawWall(ctx, or, 255, 0, 0)
-  )
   state.tirs.map( (tir) => 
-    drawCirle (ctx, tir.coord, COLORS.GREEN))
+    drawCirle (ctx, tir.coord, COLORS.GREEN)
+  )
+  state.tirsEnnemie.map( (tir) => 
+    drawCirle (ctx, tir.coord, COLORS.ORANGE)
+  )
 
   state.debris.map( (debri) =>
     drawObjCircle(ctx, debri, COLORS.RED)
+  )
+
+  state.ennemisQuiTire.map( (ennemie) => 
+    drawObjRect(ctx, ennemie[1], COLORS.ORANGE)
   )
   
   drawHero(ctx, state.hero.coord, state.hero.hitBox,  0, 255, 0);
@@ -126,6 +140,7 @@ export const render = (ctx: CanvasRenderingContext2D) => (state: State) => {
   state.limite.map( (w) =>
     drawWall(ctx, w, 245, 184, 135)
   )
+
   
   if (state.endOfGame) {
     const text = 'END'

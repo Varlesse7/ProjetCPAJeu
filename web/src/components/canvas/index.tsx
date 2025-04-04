@@ -1,6 +1,6 @@
 import * as conf from './conf'
 import { useRef, useEffect } from 'react'
-import { State, step, click, mouseMove, endOfGame, handleKeyPress } from './state'
+import { State, step, mouseMove, endOfGame, handleKeyPress, Rectangle } from './state'
 import { render } from './renderer'
 
 const randomInt = (max: number) => Math.floor(Math.random() * max)
@@ -24,40 +24,25 @@ const Canvas = ({ height, width }: { height: number; width: number }) => {
 
   const tirs = new Array(0)
   const debris = new Array(0)
-  const ennemisQuiTire = new Array(0)
-  const listObjectC = new Array(0)
-  listObjectC.push({coord:{x:500, y:350, dx:0, dy:0}, radius : 25})
- 
-  const listObjectR = new Array(0)
-  listObjectR.push({leftTop:{x:1000, y:400}, rightBottom : {x:1100, y:500}})
+  const ennemisQuiTire = new Array<[number, Rectangle]>()
 
   const initialState: State = {
     hero : {
       coord : {
         x: ((test[2].leftTop.x - test[1].rightBottom.x) /2)+ test[1].rightBottom.x,
         y: window.innerHeight - 150,
-        dx: 3,
-        dy: 3,
+        dx: 4,
+        dy: 4,
       },
       hitBox : {
-        hx: 50, 
-        hy: 50,
+        hx: 25, 
+        hy: 25,
       },
       vie: 3,
       force: 10,
     },
-    pos: new Array(2).fill(1).map((_) => ({
-      life: conf.BALLLIFE,
-      coord: {
-        x: randomInt(width - (120+(2*conf.BOUNDLEFT))) + (60+conf.BOUNDLEFT),
-        y: randomInt(height - (120+(2*conf.BOUNDTOP))) + (60+conf.BOUNDTOP),
-        dx: 4 * randomSign(),
-        dy: 4 * randomSign(),
-      },
-    })),
     limite: test,
-    objectC: listObjectC,
-    objectR: listObjectR,
+    tirsEnnemie: new Array(0),
     
     size: { height: height - conf.BOUNDTOP, width: width - conf.BOUNDLEFT  },
     endOfGame: false,
@@ -77,9 +62,9 @@ const Canvas = ({ height, width }: { height: number; width: number }) => {
     if (!state.current.endOfGame) requestAnimationFrame(() => iterate(ctx))
   } 
 
-  const onClick = (e: PointerEvent) => {
+  /*const onClick = (e: PointerEvent) => {
     state.current = click(state.current)(e)
-  }
+  }*/
 
   const onMove = (e: PointerEvent) => {
     state.current = mouseMove(state.current)(e)
@@ -92,7 +77,7 @@ const Canvas = ({ height, width }: { height: number; width: number }) => {
   useEffect(() => {
     if (ref.current) {
       initCanvas(iterate)(ref.current)
-      ref.current.addEventListener('click', onClick)
+      //ref.current.addEventListener('click', onClick)
       ref.current.addEventListener('mousemove', onMove)
       window.addEventListener("keydown",onKey)
     }
