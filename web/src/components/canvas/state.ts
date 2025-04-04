@@ -221,19 +221,22 @@ export const step = (state: State) => {
   }
 
   state.ennemisQuiTire = state.ennemisQuiTire.map(([cooldown, ennemie]:[number, Rectangle]) =>{
-    if (cooldown <= 0) {
-      state.tirsEnnemie.push({
-        life:1,
-      coord: {
-        x: ennemie.coord.x+25,
-        y: ennemie.coord.y+50,
-        dx: 0,
-        dy: 2,
-      },
-      })
-      return [100, ennemie];
+    if (ennemie.coord.y == 200){
+      if (cooldown <= 0) {
+        state.tirsEnnemie.push({
+          life:1,
+        coord: {
+          x: ennemie.coord.x+25,
+          y: ennemie.coord.y+50,
+          dx: 0,
+          dy: 2,
+        },
+        })
+        return [150, ennemie];
+      }
+      return [cooldown-1, ennemie];
     }
-    return [cooldown-1, ennemie];
+    return [cooldown, ennemie];
   }
 )
 
@@ -260,12 +263,12 @@ export const step = (state: State) => {
 
       case 2 :
         state.ennemisQuiTire.push([ 
-          100,
+          150,
           {coord: {
             x: randomInt(window.innerWidth - (120+(2*conf.BOUNDLEFT))) + (60+conf.BOUNDLEFT),
             y: 0,
             dx:0, 
-            dy:4 },
+            dy:1 },
           width:50, 
           height:50, 
           life: 2 //possibilité de modifier la vie
