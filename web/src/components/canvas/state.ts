@@ -36,6 +36,7 @@ export type State = {
   tirsEnnemie: Array<Ball>
   shootCooldownHero : number
   ennemyDelay : number
+  ennemisTues : number
 }
 
 const dist2 = (o1: Coord, o2: Coord) =>
@@ -379,64 +380,39 @@ export const step = (state: State) => {
     state.shootCooldownHero--;
   }
 
-  state.ennemisQuiTire = state.ennemisQuiTire.map(([cooldown, ennemie]:[number, Rectangle]) =>{
-    if (ennemie.coord.y == 200){
-      if (cooldown <= 0) {
-        state.tirsEnnemie.push({
-          life:1,
-        coord: {
-          x: ennemie.coord.x+25,
-          y: ennemie.coord.y+50,
-          dx: 0,
-          dy: 2,
-        },
-        })
-        return [150, ennemie];
+  const triggerBoss = 10
+  if(state.ennemisTues < triggerBoss){
+    state.ennemisQuiTire = state.ennemisQuiTire.map(([cooldown, ennemie]:[number, Rectangle]) =>{
+      if (ennemie.coord.y == 200){
+        if (cooldown <= 0) {
+          state.tirsEnnemie.push({
+            life:1,
+          coord: {
+            x: ennemie.coord.x+25,
+            y: ennemie.coord.y+50,
+            dx: 0,
+            dy: 2,
+          },
+          })
+          return [150, ennemie];
+        }
+        return [cooldown-1, ennemie];
       }
-      return [cooldown-1, ennemie];
+      return [cooldown, ennemie];
     }
-    return [cooldown, ennemie];
-  }
-)
-
-
+  )
   
-  //Gestion du délai d'apparition d'ennemis
-  const appearanceDelay = 100;
-  if (state.ennemyDelay <= 0) {
+  
     
-    switch (randomInt(4)){
-
-      case 0 :
-        //possibilité d'algo de gravité
-        state.debris.push(
-          {coord:{
-            x: randomInt(window.innerWidth - (120+(2*conf.BOUNDLEFT))) + (60+conf.BOUNDLEFT),
-            y: 0,
-            dx:0, 
-            dy:2},
-          radius : 25,
-          life : 2 // faire un truc en fonction du rayon pour la vie
-        });
-        break;
-
-      case 2 :
-        state.ennemisQuiTire.push([ 
-          150,
-          {coord: {
-            x: randomInt(window.innerWidth - (120+(2*conf.BOUNDLEFT))) + (60+conf.BOUNDLEFT),
-            y: 0,
-            dx:0, 
-            dy:1 },
-          width:50, 
-          height:50, 
-          life: 2 //possibilité de modifier la vie
-          }
-        ])
-        break;
-
-        case 1:
-          state.ennemisVersHero.push(
+    //Gestion du délai d'apparition d'ennemis
+    const appearanceDelay = 100;
+    if (state.ennemyDelay <= 0) {
+      
+      switch (randomInt(4)){
+  
+        case 0 :
+          //possibilité d'algo de gravité
+          state.debris.push(
             {coord:{
               x: randomInt(window.innerWidth - (120+(2*conf.BOUNDLEFT))) + (60+conf.BOUNDLEFT),
               y: 0,
@@ -446,104 +422,164 @@ export const step = (state: State) => {
             life : 2 // faire un truc en fonction du rayon pour la vie
           });
           break;
-
-        case 3:
-          const s1= conf.BOUNDLEFT+1
-          const s2 = conf.BOUNDLEFT*2 -1
-          state.ennemisSurCote.push(
+  
+        case 2 :
+          state.ennemisQuiTire.push([ 
+            150,
             {coord: {
-              x: (Math.abs(s1-state.hero.coord.x) < Math.abs(s2-state.hero.coord.x))? s2 : s1 ,
-              y: state.hero.coord.y,
-              dx: (Math.abs(s1-state.hero.coord.x) < Math.abs(s2-state.hero.coord.x))? -3 : 3, 
-              dy:0 },
-            width:100, 
-            height:30, 
-            life: 1 //possibilité de modifier la vie
+              x: randomInt(window.innerWidth - (120+(2*conf.BOUNDLEFT))) + (60+conf.BOUNDLEFT),
+              y: 0,
+              dx:0, 
+              dy:1 },
+            width:50, 
+            height:50, 
+            life: 2 //possibilité de modifier la vie
             }
-          );
+          ])
           break;
-
-      default : 
-        break;
-
+  
+          case 1:
+            state.ennemisVersHero.push(
+              {coord:{
+                x: randomInt(window.innerWidth - (120+(2*conf.BOUNDLEFT))) + (60+conf.BOUNDLEFT),
+                y: 0,
+                dx:0, 
+                dy:2},
+              radius : 25,
+              life : 2 // faire un truc en fonction du rayon pour la vie
+            });
+            break;
+  
+          case 3:
+            const s1= conf.BOUNDLEFT+1
+            const s2 = conf.BOUNDLEFT*2 -1
+            state.ennemisSurCote.push(
+              {coord: {
+                x: (Math.abs(s1-state.hero.coord.x) < Math.abs(s2-state.hero.coord.x))? s2 : s1 ,
+                y: state.hero.coord.y,
+                dx: (Math.abs(s1-state.hero.coord.x) < Math.abs(s2-state.hero.coord.x))? -3 : 3, 
+                dy:0 },
+              width:100, 
+              height:30, 
+              life: 1 //possibilité de modifier la vie
+              }
+            );
+            break;
+  
+        default : 
+          break;
+  
+      }
+      
+      state.ennemyDelay = appearanceDelay;
+    } else {
+      state.ennemyDelay--;
     }
-    
-    state.ennemyDelay = appearanceDelay;
-  } else {
-    state.ennemyDelay--;
+  
+    //Collision débris - tir
+    state.tirs.map((p1) => {
+      state.debris.map((c) => {
+        if (collideBOC(p1.coord, c)){
+          p1.life--
+          c.life--
+          if(c.life==0) state.ennemisTues++
+        }
+      })
+    })
+  
+    state.tirs.map((p1) => {
+      state.ennemisVersHero.map((c) => {
+        if (collideBOC(p1.coord, c)){
+          p1.life--
+          c.life--
+          if(c.life==0) state.ennemisTues++
+        }
+      })
+    })
+  
+    state.tirsEnnemie.map((p) => {
+      const coordH = state.hero.coord
+      if (collideHeroTir(state.hero, p)){
+        p.life = 0;
+        state.hero.vie --;
+      }
+    })
+  
+    state.ennemisQuiTire.map(([_,r]) => {
+      if(collideHeroRect(state.hero,r)){
+        r.life = 0;
+        state.hero.vie = 0;
+        state.ennemisTues++
+      }
+      state.tirs.map((p)=> {
+        if (collideEnnemieTir(r, p)){
+          r.life--;
+          p.life = 0;
+        }
+      })
+      
+    })
+  
+    state.ennemisQuiTire.map(([_,r]) => {
+      state.tirs.map((p)=> {
+        if (collideEnnemieTir(r, p)){
+          r.life--;
+          p.life = 0;
+          if(r.life==0) state.ennemisTues++
+        }
+      })
+    })
+  
+  
+    if(state.hero.vie == 0) {
+      state.hero.coord.x =1
+      state.endOfGame = true
+    }
+  
+    //Collision debri-héros
+    state.debris.map((d) => {
+      if (collideROC(state.hero,d)) {
+        d.life = 0
+        state.hero.vie --;
+        state.ennemisTues++
+      }
+  
+    })
+  
+    state.ennemisVersHero.map((d) => {
+      if (collideROC(state.hero,d)) {
+        d.life = 0
+        state.hero.vie --;
+        state.ennemisTues++
+      }
+    })
+  
+    state.ennemisSurCote.map((r) => {
+      if(collideHeroRect(state.hero,r)){
+        r.life = 0;
+        state.hero.vie --;
+        state.ennemisTues++
+      }
+      state.tirs.map((p)=> {
+        if (collideEnnemieTir(r, p)){
+          p.life = 0;
+        }
+      })
+    })
+  
+  }else{
+    state.debris = Array(0)
+    state.ennemisQuiTire = Array(0)
+    state.ennemisVersHero = Array(0)
+    state.ennemisSurCote = Array(0)
+
+
   }
 
-  //Collision débris - tir
-  state.tirs.map((p1) => {
-    state.debris.map((c) => {
-      if (collideBOC(p1.coord, c)){
-        p1.life--
-        c.life--
-      }
-    })
-  })
+  
+  console.log(state.ennemisTues)
 
-  state.tirs.map((p1) => {
-    state.ennemisVersHero.map((c) => {
-      if (collideBOC(p1.coord, c)){
-        p1.life--
-        c.life--
-      }
-    })
-  })
-
-  state.tirsEnnemie.map((p) => {
-    const coordH = state.hero.coord
-    if (collideHeroTir(state.hero, p)){
-      p.life = 0;
-      state.hero.vie --;
-    }
-  })
-
-  state.ennemisQuiTire.map(([_,r]) => {
-    if(collideHeroRect(state.hero,r)){
-      r.life = 0;
-      state.hero.vie = 0;
-    }
-    state.tirs.map((p)=> {
-      if (collideEnnemieTir(r, p)){
-        r.life--;
-        p.life = 0;
-      }
-    })
-    
-  })
-
-  state.ennemisQuiTire.map(([_,r]) => {
-    state.tirs.map((p)=> {
-      if (collideEnnemieTir(r, p)){
-        r.life--;
-        p.life = 0;
-      }
-    })
-  })
-
-
-  if(state.hero.vie == 0) {
-    state.hero.coord.x =1
-    state.endOfGame = true
-  }
-
-  //Collision debri-héros
-  state.debris.map((d) => {
-    if (collideROC(state.hero,d)) {
-      d.life = 0
-      state.hero.vie --;
-    }
-
-  })
-
-  state.ennemisVersHero.map((d) => {
-    if (collideROC(state.hero,d)) {
-      d.life = 0
-      state.hero.vie --;
-    }
-  })
+  
 
 
   return {
@@ -553,7 +589,7 @@ export const step = (state: State) => {
     debris: state.debris.map(mouvDebris(state.size)).filter((p) => p.coord.y < window.innerHeight && p.life > 0),
     ennemisQuiTire: state.ennemisQuiTire.map(mouvTirD(state.size)).filter(([_, rect]) => rect.coord.y < window.innerHeight && rect.life > 0),
     ennemisVersHero: state.ennemisVersHero.map(mouvAStar(state.size, state.hero.coord)).filter((p) => p.coord.y < window.innerHeight && p.life > 0),
-    ennemisSurCote: state.ennemisSurCote.map(mouvY(state.size)).filter((p) => p.coord.x +p.width < conf.BOUNDLEFT || p.coord.x +p.width > conf.BOUNDLEFT),
+    ennemisSurCote: state.ennemisSurCote.map(mouvY(state.size)).filter((p) => p.life >0 && (p.coord.x +p.width < conf.BOUNDLEFT || p.coord.x +p.width > conf.BOUNDLEFT) ),
     endOfGame: state.endOfGame,
   }
 }
@@ -569,30 +605,25 @@ export const handleKeyPress =
         const hy = state.hero.hitBox.hy/2;
         switch (event.key) {
           case "Z":
-          case "z":
-            console.log("z")
-            
+          case "z":            
             if (ay - stepy - hy > state.limite[0].rightBottom.y){
               return {...state, hero:{...state.hero, coord: {...state.hero.coord, y: ay - stepy}}}
             }
             return state;
           case "s":
           case "S":
-            console.log("s")
             if (ay + stepy+ hy< state.limite[3].leftTop.y){
               return {...state, hero:{...state.hero, coord: {...state.hero.coord, y: ay + stepy}}}
             }
             return state;
           case "q":
           case "Q":
-            console.log("q")
             if (ax - stepx - hx> state.limite[1].rightBottom.x){
               return {...state, hero:{...state.hero, coord: {...state.hero.coord, x: ax - stepx}}}
             }
             return state;
           case "d":
           case "D":
-            console.log("d")
             if (ax + stepx + hx < state.limite[2].leftTop.x){
               return {...state, hero:{...state.hero, coord: {...state.hero.coord, x: ax + stepx}}}
             }

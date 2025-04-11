@@ -52,7 +52,8 @@ const Canvas = ({ height, width }: { height: number; width: number }) => {
     debris : debris,
     ennemisQuiTire : ennemisQuiTire,
     ennemisVersHero : new Array(0),
-    ennemisSurCote : new Array(0)
+    ennemisSurCote : new Array(0),
+    ennemisTues :0
   }
 
   const ref = useRef<any>()
