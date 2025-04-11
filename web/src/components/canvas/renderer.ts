@@ -4,7 +4,8 @@ const COLORS = {
   RED: '#ff0000',
   GREEN: '#00ff00',
   BLUE: '#0000ff',
-  ORANGE: '#ffA500'
+  ORANGE: '#ffA500',
+  PURPLE: '#800080'
 }
 
 const toDoubleHexa = (n: number) =>
@@ -133,6 +134,10 @@ export const render = (ctx: CanvasRenderingContext2D) => (state: State) => {
 
   state.ennemisQuiTire.map( (ennemie) => 
     drawObjRect(ctx, ennemie[1], COLORS.ORANGE)
+  )
+
+  state.ennemisVersHero.map( (debri) =>
+    drawObjCircle(ctx, debri, COLORS.PURPLE)
   )
   
   drawHero(ctx, state.hero.coord, state.hero.hitBox,  0, 255, 0);

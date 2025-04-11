@@ -50,7 +50,8 @@ const Canvas = ({ height, width }: { height: number; width: number }) => {
     shootCooldownHero : 0,
     ennemyDelay : 0,
     debris : debris,
-    ennemisQuiTire : ennemisQuiTire
+    ennemisQuiTire : ennemisQuiTire,
+    ennemisVersHero : new Array(0)
   }
 
   const ref = useRef<any>()

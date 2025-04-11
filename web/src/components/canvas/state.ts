@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import FastPriorityQueue from "fastpriorityqueue";
 import * as conf from './conf'
 export type Coord = { x: number; y: number; dx: number; dy: number }
 export type Point = {x:number; y: number}
@@ -8,6 +9,14 @@ type Wall = { leftTop:Point, rightBottom:Point}
 type ObjectCercle = {coord: Coord; radius: number; life: number}
 export type Rectangle = {coord: Coord, width:number, height:number, life: number}
 type Hero = {coord: Coord, hitBox: {hx: number, hy: number}, vie: number, force : number}
+
+type Node = {
+  coord: Coord;
+  g: number; // Coût depuis le départ
+  h: number; // Heuristique (distance estimée jusqu'à la cible)
+  f: number; // f = g + h
+  parent?: Node;
+};
 
 // Mur de droite = 1 et Mur haut = 0 et Mur gauche = 2  
 
@@ -22,6 +31,7 @@ export type State = {
   tirs: Array<Ball>
   debris: Array<ObjectCercle>
   ennemisQuiTire: Array<[number, Rectangle]>
+  ennemisVersHero: Array<ObjectCercle>
   tirsEnnemie: Array<Ball>
   shootCooldownHero : number
   ennemyDelay : number
@@ -73,6 +83,101 @@ const mouvTirD = (bound: Size) => ([i, rect]: [number, Rectangle]) => {
     },
   ]as [number, Rectangle];;
 }
+
+// 🔹 Heuristique : Distance de Manhattan
+const heuristique = (a: Coord, b: Coord): number => 
+  Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
+// 🔹 Retourne les voisins valides d’un noeud
+const getNeighbors = (node: Node, bound: Size): Coord[] => {
+  const { x, y } = node.coord;
+  const moves: Coord[] = [
+    { x: x - 1, y, dx: -1, dy: 0 }, // Gauche
+    { x: x + 1, y, dx: 1, dy: 0 },  // Droite
+    { x, y: y - 1, dx: 0, dy: -1 }, // Haut
+    { x, y: y + 1, dx: 0, dy: 1 }   // Bas
+  ];
+  return moves.filter(n => n.x >= 0 && n.y >= 0 && n.x < bound.width && n.y < bound.height);
+};
+
+// 🔹 Algorithme A*
+const astar = (start: Coord, goal: Coord, bound: Size): Coord[] => {
+  const openSet = new FastPriorityQueue<Node>((a, b) => a.f < b.f);
+  openSet.add({ coord: start, g: 0, h: heuristique(start, goal), f: heuristique(start, goal) });
+
+  const closedSet: Set<string> = new Set();
+  const gScoreMap: Map<string, number> = new Map();
+  const cameFrom: Map<string, Node> = new Map();
+
+  gScoreMap.set(`${start.x},${start.y}`, 0);
+
+  while (!openSet.isEmpty()) {
+    const current = openSet.poll()!; // Récupère le nœud avec f le plus bas
+
+    if (current.coord.x === goal.x && current.coord.y === goal.y) {
+      let path: Coord[] = [];
+      let temp: Node | undefined = current;
+      while (temp) {
+        path.push(temp.coord);
+        temp = cameFrom.get(`${temp.coord.x},${temp.coord.y}`);
+      }
+      return path.reverse(); // Chemin du départ à l'arrivée
+    }
+
+    closedSet.add(`${current.coord.x},${current.coord.y}`);
+
+    for (const neighborCoord of getNeighbors(current, bound)) {
+      const neighborKey = `${neighborCoord.x},${neighborCoord.y}`;
+      if (closedSet.has(neighborKey)) continue;
+
+      const tentativeGScore = current.g + 1;
+      if (!gScoreMap.has(neighborKey) || tentativeGScore < gScoreMap.get(neighborKey)!) {
+        gScoreMap.set(neighborKey, tentativeGScore);
+        const hScore = heuristique(neighborCoord, goal);
+        const neighborNode = { 
+          coord: neighborCoord, 
+          g: tentativeGScore, 
+          h: hScore, 
+          f: tentativeGScore + hScore, 
+          parent: current 
+        };
+
+        openSet.add(neighborNode);
+        cameFrom.set(neighborKey, current);
+      }
+    }
+  }
+  return [];
+};
+
+// 🔹 Fonction pour déplacer un objet vers le héros avec A*
+const mouvAStar = (bound: Size, hero: Coord) => {
+  let lastPath: Coord[] = [];
+  
+  return (ball: ObjectCercle) => {
+    // Toujours recalculer si le chemin est vide
+    if (lastPath.length === 0) {
+      lastPath = astar(ball.coord, hero, bound);
+    }
+
+    if (lastPath.length > 1) {
+      const nextStep = lastPath[1];
+      lastPath.shift();
+      return { ...ball, coord: nextStep };
+    }
+    
+    // Si aucun chemin valide, avancer simplement vers le bas
+    return { 
+      ...ball, 
+      coord: { 
+        ...ball.coord, 
+        y: ball.coord.y + 1, // Mouvement de repli
+        dy: 1 
+      } 
+    };
+  };
+};
+
 
 
 /*export const click =
@@ -243,12 +348,12 @@ export const step = (state: State) => {
 
   
   //Gestion du délai d'apparition d'ennemis
-  const appearanceDelay = 200;
+  const appearanceDelay = 10;
   if (state.ennemyDelay <= 0) {
     
-    switch (randomInt(3)){
+    switch (randomInt(2)){
 
-      case 1 :
+      case 5 :
         //possibilité d'algo de gravité
         state.debris.push(
           {coord:{
@@ -261,7 +366,7 @@ export const step = (state: State) => {
         });
         break;
 
-      case 2 :
+      case 5 :
         state.ennemisQuiTire.push([ 
           150,
           {coord: {
@@ -275,6 +380,18 @@ export const step = (state: State) => {
           }
         ])
         break;
+
+        case 1:
+          state.ennemisVersHero.push(
+            {coord:{
+              x: randomInt(window.innerWidth - (120+(2*conf.BOUNDLEFT))) + (60+conf.BOUNDLEFT),
+              y: 0,
+              dx:0, 
+              dy:2},
+            radius : 25,
+            life : 2 // faire un truc en fonction du rayon pour la vie
+          });
+          break;
 
       default : 
         break
@@ -335,6 +452,7 @@ export const step = (state: State) => {
     tirsEnnemie: state.tirsEnnemie.map(iterate(state.size)).filter((p) => p.coord.y > 0 && p.life > 0),
     debris: state.debris.map(mouvDebris(state.size)).filter((p) => p.coord.y < window.innerHeight && p.life > 0),
     ennemisQuiTire: state.ennemisQuiTire.map(mouvTirD(state.size)).filter(([_, rect]) => rect.coord.y < window.innerHeight && rect.life > 0),
+    ennemisVersHero: state.ennemisVersHero.map(mouvAStar(state.size, state.hero.coord)).filter((p) => p.coord.y < window.innerHeight && p.life > 0),
     endOfGame: state.endOfGame,
   }
 }
