@@ -32,6 +32,7 @@ export type State = {
   debris: Array<ObjectCercle>
   ennemisQuiTire: Array<[number, Rectangle]>
   ennemisVersHero: Array<ObjectCercle>
+  ennemisSurCote: Array<Rectangle>
   tirsEnnemie: Array<Ball>
   shootCooldownHero : number
   ennemyDelay : number
@@ -84,26 +85,31 @@ const mouvTirD = (bound: Size) => ([i, rect]: [number, Rectangle]) => {
   ]as [number, Rectangle];;
 }
 
+const mouvY = (bound: Size) => (rect: Rectangle) => {
+  
+  return {
+    ...rect, 
+    coord: {
+      ...rect.coord,
+      x: rect.coord.x + rect.coord.dx,
+      y: rect.coord.y + rect.coord.dy,
+    },
+  }
+}
+
 // 🔹 Heuristique : Distance de Manhattan
 const heuristique = (a: Coord, b: Coord): number => 
   Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 
-// 🔹 Retourne les voisins valides d’un noeud
-const getNeighbors = (node: Node, bound: Size): Coord[] => {
-  const { x, y } = node.coord;
-  const moves: Coord[] = [
-    { x: x - 1, y, dx: -1, dy: 0 }, // Gauche
-    { x: x + 1, y, dx: 1, dy: 0 },  // Droite
-    { x, y: y - 1, dx: 0, dy: -1 }, // Haut
-    { x, y: y + 1, dx: 0, dy: 1 }   // Bas
-  ];
-  return moves.filter(n => n.x >= 0 && n.y >= 0 && n.x < bound.width && n.y < bound.height);
-};
-
-// 🔹 Algorithme A*
+// 🔹 Algorithme A* modifié
 const astar = (start: Coord, goal: Coord, bound: Size): Coord[] => {
   const openSet = new FastPriorityQueue<Node>((a, b) => a.f < b.f);
-  openSet.add({ coord: start, g: 0, h: heuristique(start, goal), f: heuristique(start, goal) });
+  openSet.add({ 
+    coord: start, 
+    g: 0, 
+    h: heuristique(start, goal), 
+    f: heuristique(start, goal) 
+  });
 
   const closedSet: Set<string> = new Set();
   const gScoreMap: Map<string, number> = new Map();
@@ -112,25 +118,28 @@ const astar = (start: Coord, goal: Coord, bound: Size): Coord[] => {
   gScoreMap.set(`${start.x},${start.y}`, 0);
 
   while (!openSet.isEmpty()) {
-    const current = openSet.poll()!; // Récupère le nœud avec f le plus bas
+    const current = openSet.poll()!;
 
-    if (current.coord.x === goal.x && current.coord.y === goal.y) {
+    // Condition d'arrêt avec tolérance de 10px
+    if (Math.abs(current.coord.x - goal.x) <= 10 && 
+        Math.abs(current.coord.y - goal.y) <= 10) {
       let path: Coord[] = [];
       let temp: Node | undefined = current;
       while (temp) {
         path.push(temp.coord);
         temp = cameFrom.get(`${temp.coord.x},${temp.coord.y}`);
       }
-      return path.reverse(); // Chemin du départ à l'arrivée
+      return path.reverse();
     }
 
     closedSet.add(`${current.coord.x},${current.coord.y}`);
 
-    for (const neighborCoord of getNeighbors(current, bound)) {
+    // Voisins avec un pas de 4 pixels
+    for (const neighborCoord of getNeighbors(current, bound, 2)) {
       const neighborKey = `${neighborCoord.x},${neighborCoord.y}`;
       if (closedSet.has(neighborKey)) continue;
 
-      const tentativeGScore = current.g + 1;
+      const tentativeGScore = current.g + 2; // Coût basé sur la distance
       if (!gScoreMap.has(neighborKey) || tentativeGScore < gScoreMap.get(neighborKey)!) {
         gScoreMap.set(neighborKey, tentativeGScore);
         const hScore = heuristique(neighborCoord, goal);
@@ -138,7 +147,7 @@ const astar = (start: Coord, goal: Coord, bound: Size): Coord[] => {
           coord: neighborCoord, 
           g: tentativeGScore, 
           h: hScore, 
-          f: tentativeGScore + hScore, 
+          f: tentativeGScore + hScore,
           parent: current 
         };
 
@@ -150,35 +159,92 @@ const astar = (start: Coord, goal: Coord, bound: Size): Coord[] => {
   return [];
 };
 
-// 🔹 Fonction pour déplacer un objet vers le héros avec A*
+// 🔹 getNeighbors modifié pour un pas de 4
+const getNeighbors = (node: Node, bound: Size, step: number = 2): Coord[] => {
+  const { x, y } = node.coord;
+  const moves: Coord[] = [
+    { x: x - step, y, dx: -step, dy: 0 }, // Gauche
+    { x: x + step, y, dx: step, dy: 0 },  // Droite
+    { x, y: y - step, dx: 0, dy: -step }, // Haut
+    { x, y: y + step, dx: 0, dy: step },   // Bas
+    { x: x - step, y: y - step, dx: -step, dy: 0 }, // Gauche
+    { x: x + step, y: y + step, dx: step, dy: 0 },  // Droite
+    { x: x - step, y: y + step, dx: 0, dy: -step }, // Haut
+    {  x: x + step, y: y - step, dx: 0, dy: step }   // Bas
+  ];
+  return moves.filter(n => 
+    n.x >= 0 && 
+    n.y >= 0 && 
+    n.x < bound.width && 
+    n.y < bound.height
+  );
+};
+
+// 🔹 Fonction de mouvement adaptée
 const mouvAStar = (bound: Size, hero: Coord) => {
   let lastPath: Coord[] = [];
-  
+  let lastGoal: Coord | null = null;
+  let isApproachingGoal = false;
+
   return (ball: ObjectCercle) => {
-    // Toujours recalculer si le chemin est vide
-    if (lastPath.length === 0) {
-      lastPath = astar(ball.coord, hero, bound);
+    const distanceToGoal = heuristique(ball.coord, hero);
+    
+    // Si on est déjà assez proche, on va directement vers le goal
+    if (distanceToGoal <= 20) {
+      isApproachingGoal = true;
+      const dx = Math.sign(hero.x - ball.coord.x) * 4;
+      const dy = Math.sign(hero.y - ball.coord.y) * 4;
+      return {
+        ...ball,
+        coord: {
+          x: ball.coord.x + dx,
+          y: ball.coord.y + dy,
+          dx,
+          dy
+        }
+      };
     }
 
-    if (lastPath.length > 1) {
+    // Recalcul du chemin seulement si nécessaire
+    if (!lastGoal || heuristique(hero, lastGoal) > 50 || lastPath.length === 0) {
+      lastPath = astar(ball.coord, hero, bound);
+      lastGoal = {...hero};
+      isApproachingGoal = false;
+    }
+
+    if (!isApproachingGoal && lastPath.length > 1) {
       const nextStep = lastPath[1];
       lastPath.shift();
-      return { ...ball, coord: nextStep };
+      
+      // Lissage du mouvement
+      const dx = nextStep.x - ball.coord.x;
+      const dy = nextStep.y - ball.coord.y;
+      
+      return {
+        ...ball,
+        coord: {
+          x: ball.coord.x + dx,
+          y: ball.coord.y + dy,
+          dx,
+          dy
+        }
+      };
     }
-    
-    // Si aucun chemin valide, avancer simplement vers le bas
-    return { 
-      ...ball, 
-      coord: { 
-        ...ball.coord, 
-        y: ball.coord.y + 1, // Mouvement de repli
-        dy: 1 
-      } 
+
+    // Fallback: mouvement direct si aucun chemin
+    const dx = Math.sign(hero.x - ball.coord.x) * 4;
+    const dy = Math.sign(hero.y - ball.coord.y) * 4;
+    return {
+      ...ball,
+      coord: {
+        x: ball.coord.x + dx,
+        y: ball.coord.y + dy,
+        dx,
+        dy
+      }
     };
   };
 };
-
-
 
 /*export const click =
   (state: State) =>
@@ -245,26 +311,14 @@ const collideEnnemieTir = (h: Rectangle, oc: Ball) => {
   return (distX * distX + distY * distY) <= (cr * cr);
 };
   
-const collideBORR = (b:Coord, or:Wall) => 
-  ((dist2(b, {x: or.rightBottom.x, y: or.leftTop.y, dx: 0, dy: 0}) < Math.pow(conf.RADIUS, 2)) || 
-  (dist2(b, {x: or.rightBottom.x, y: or.rightBottom.y, dx: 0, dy: 0}) < Math.pow(conf.RADIUS, 2))) || 
-  (dist2(b, {x: or.rightBottom.x, y:b.y, dx:0, dy:0}) < Math.pow(conf.RADIUS,2) && b.y > or.leftTop.y && b.y < or.rightBottom.y)
-
-const collideBORL = (b:Coord, or: Wall) => 
-  (dist2(b, {x: or.leftTop.x, y: or.rightBottom.y, dx: 0, dy: 0}) < Math.pow(conf.RADIUS, 2)) || 
-  (dist2(b, {x: or.leftTop.x, y: or.leftTop.y, dx: 0, dy: 0}) < Math.pow(conf.RADIUS, 2)) || 
-  (dist2(b, {x: or.leftTop.x, y:b.y, dx:0, dy:0}) < Math.pow(conf.RADIUS,2) && b.y > or.leftTop.y && b.y < or.rightBottom.y)
-
-const collideBORU = (b:Coord, or:Wall) =>
-  (dist2(b, {x: or.rightBottom.x, y: or.leftTop.y, dx: 0, dy: 0}) < Math.pow(conf.RADIUS, 2)) || 
-  (dist2(b, {x: or.leftTop.x, y: or.leftTop.y, dx: 0, dy: 0}) < Math.pow(conf.RADIUS, 2)) || 
-  (dist2(b, {x: b.x, y:or.leftTop.y, dx:0, dy:0}) < Math.pow(conf.RADIUS,2) && b.x > or.leftTop.x && b.x < or.rightBottom.x) 
-
-
-const collideBORB = (b:Coord, or:Wall) =>
-  (dist2(b, {x: or.leftTop.x, y: or.rightBottom.y, dx: 0, dy: 0}) < Math.pow(conf.RADIUS, 2)) || 
-  (dist2(b, {x: or.rightBottom.x, y: or.rightBottom.y, dx: 0, dy: 0}) < Math.pow(conf.RADIUS, 2)) || 
-  (dist2(b, {x: b.x, y:or.rightBottom.y, dx:0, dy:0}) < Math.pow(conf.RADIUS,2) && b.x > or.leftTop.x && b.x < or.rightBottom.x) 
+const collideHeroRect = (hero: Hero, rect: Rectangle): boolean => {
+  return !(
+      hero.coord.x + hero.hitBox.hx/2 < rect.coord.x ||
+      hero.coord.x - hero.hitBox.hx/2 > rect.coord.x + rect.width ||
+      hero.coord.y + hero.hitBox.hy/2 < rect.coord.y ||
+      hero.coord.y - hero.hitBox.hy/2 > rect.coord.y + rect.height
+  );
+};
 
 
 const collide = (o1: Coord, o2: Coord) =>
@@ -348,12 +402,12 @@ export const step = (state: State) => {
 
   
   //Gestion du délai d'apparition d'ennemis
-  const appearanceDelay = 10;
+  const appearanceDelay = 100;
   if (state.ennemyDelay <= 0) {
     
-    switch (randomInt(2)){
+    switch (randomInt(4)){
 
-      case 5 :
+      case 0 :
         //possibilité d'algo de gravité
         state.debris.push(
           {coord:{
@@ -366,7 +420,7 @@ export const step = (state: State) => {
         });
         break;
 
-      case 5 :
+      case 2 :
         state.ennemisQuiTire.push([ 
           150,
           {coord: {
@@ -393,8 +447,24 @@ export const step = (state: State) => {
           });
           break;
 
+        case 3:
+          const s1= conf.BOUNDLEFT+1
+          const s2 = conf.BOUNDLEFT*2 -1
+          state.ennemisSurCote.push(
+            {coord: {
+              x: (Math.abs(s1-state.hero.coord.x) < Math.abs(s2-state.hero.coord.x))? s2 : s1 ,
+              y: state.hero.coord.y,
+              dx: (Math.abs(s1-state.hero.coord.x) < Math.abs(s2-state.hero.coord.x))? -3 : 3, 
+              dy:0 },
+            width:100, 
+            height:30, 
+            life: 1 //possibilité de modifier la vie
+            }
+          );
+          break;
+
       default : 
-        break
+        break;
 
     }
     
@@ -413,12 +483,35 @@ export const step = (state: State) => {
     })
   })
 
+  state.tirs.map((p1) => {
+    state.ennemisVersHero.map((c) => {
+      if (collideBOC(p1.coord, c)){
+        p1.life--
+        c.life--
+      }
+    })
+  })
+
   state.tirsEnnemie.map((p) => {
     const coordH = state.hero.coord
     if (collideHeroTir(state.hero, p)){
       p.life = 0;
       state.hero.vie --;
     }
+  })
+
+  state.ennemisQuiTire.map(([_,r]) => {
+    if(collideHeroRect(state.hero,r)){
+      r.life = 0;
+      state.hero.vie = 0;
+    }
+    state.tirs.map((p)=> {
+      if (collideEnnemieTir(r, p)){
+        r.life--;
+        p.life = 0;
+      }
+    })
+    
   })
 
   state.ennemisQuiTire.map(([_,r]) => {
@@ -445,6 +538,13 @@ export const step = (state: State) => {
 
   })
 
+  state.ennemisVersHero.map((d) => {
+    if (collideROC(state.hero,d)) {
+      d.life = 0
+      state.hero.vie --;
+    }
+  })
+
 
   return {
     ...state,
@@ -453,6 +553,7 @@ export const step = (state: State) => {
     debris: state.debris.map(mouvDebris(state.size)).filter((p) => p.coord.y < window.innerHeight && p.life > 0),
     ennemisQuiTire: state.ennemisQuiTire.map(mouvTirD(state.size)).filter(([_, rect]) => rect.coord.y < window.innerHeight && rect.life > 0),
     ennemisVersHero: state.ennemisVersHero.map(mouvAStar(state.size, state.hero.coord)).filter((p) => p.coord.y < window.innerHeight && p.life > 0),
+    ennemisSurCote: state.ennemisSurCote.map(mouvY(state.size)).filter((p) => p.coord.x +p.width < conf.BOUNDLEFT || p.coord.x +p.width > conf.BOUNDLEFT),
     endOfGame: state.endOfGame,
   }
 }
