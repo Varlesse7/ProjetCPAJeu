@@ -3,9 +3,6 @@ import { useRef, useEffect } from 'react'
 import { State, step, mouseMove, endOfGame, handleKeyPress, Rectangle } from './state'
 import { render } from './renderer'
 
-const randomInt = (max: number) => Math.floor(Math.random() * max)
-const randomSign = () => Math.sign(Math.random() - 0.5)
-
 const initCanvas =
   (iterate: (ctx: CanvasRenderingContext2D) => void) =>
   (canvas: HTMLCanvasElement) => {
@@ -27,6 +24,10 @@ const Canvas = ({ height, width }: { height: number; width: number }) => {
   const ennemisQuiTire = new Array<[number, Rectangle]>()
 
   const initialState: State = {
+    clign: false,
+    laser: new Array(0),
+    bombe: new Array(0),
+    tirsEnnemieRebond: new Array(0),
     hero : {
       coord : {
         x: ((test[2].leftTop.x - test[1].rightBottom.x) /2)+ test[1].rightBottom.x,
@@ -38,7 +39,7 @@ const Canvas = ({ height, width }: { height: number; width: number }) => {
         hx: 25, 
         hy: 25,
       },
-      vie: 3,
+      vie: conf.PLAYERLIFE,
       force: 10,
     },
     limite: test,
@@ -46,6 +47,7 @@ const Canvas = ({ height, width }: { height: number; width: number }) => {
     
     size: { height: height - conf.BOUNDTOP, width: width - conf.BOUNDLEFT  },
     endOfGame: false,
+    isBoss: false,
     tirs: tirs,
     shootCooldownHero : 0,
     ennemyDelay : 0,
@@ -53,6 +55,7 @@ const Canvas = ({ height, width }: { height: number; width: number }) => {
     ennemisQuiTire : ennemisQuiTire,
     ennemisVersHero : new Array(0),
     ennemisSurCote : new Array(0),
+    ennemisBoss : new Array(0),
     ennemisTues :0
   }
 
@@ -69,9 +72,9 @@ const Canvas = ({ height, width }: { height: number; width: number }) => {
     state.current = click(state.current)(e)
   }*/
 
-  const onMove = (e: PointerEvent) => {
+  /*const onMove = (e: PointerEvent) => {
     state.current = mouseMove(state.current)(e)
-  }
+  }*/
 
   const onKey = (e: KeyboardEvent) => {
     state.current = handleKeyPress(state.current)(e)
@@ -81,12 +84,12 @@ const Canvas = ({ height, width }: { height: number; width: number }) => {
     if (ref.current) {
       initCanvas(iterate)(ref.current)
       //ref.current.addEventListener('click', onClick)
-      ref.current.addEventListener('mousemove', onMove)
+      //ref.current.addEventListener('mousemove', onMove)
       window.addEventListener("keydown",onKey)
     }
     return () => {
-      ref.current.removeEventListener('click', onMove)
-      ref.current.removeEventListener('mousemove', onMove)
+      //ref.current.removeEventListener('click', onMove)
+      //ref.current.removeEventListener('mousemove', onMove)
       window.removeEventListener("keydown",onKey)
     }
   }, [])

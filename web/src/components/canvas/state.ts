@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+/* eslint-disable array-callback-return */
 import FastPriorityQueue from "fastpriorityqueue";
 import * as conf from './conf'
 export type Coord = { x: number; y: number; dx: number; dy: number }
@@ -21,7 +21,6 @@ type Node = {
 // Mur de droite = 1 et Mur haut = 0 et Mur gauche = 2  
 
 const randomInt = (max: number) => Math.floor(Math.random() * max)
-const randomSign = () => Math.sign(Math.random() - 0.5)
 
 export type State = {
   hero : Hero
@@ -34,9 +33,15 @@ export type State = {
   ennemisVersHero: Array<ObjectCercle>
   ennemisSurCote: Array<Rectangle>
   tirsEnnemie: Array<Ball>
+  tirsEnnemieRebond: Array<Ball>
   shootCooldownHero : number
   ennemyDelay : number
   ennemisTues : number
+  ennemisBoss : Array<Rectangle>
+  isBoss : boolean
+  laser : Array<Rectangle>
+  bombe: Array<ObjectCercle>
+  clign: boolean
 }
 
 const dist2 = (o1: Coord, o2: Coord) =>
@@ -54,6 +59,29 @@ const iterate = (bound: Size) => (ball: Ball) => {
   }
 }
 
+const iterateRebond = () => (ball:Ball) => {
+  const invincible = ball.invincible ? ball.invincible - 1 : ball.invincible
+  const coord = ball.coord
+  const dx =
+    (coord.x + conf.RADIUS < (window.innerWidth/3) || coord.x > ((window.innerWidth/3)*2)-conf.RADIUS
+      ? -coord.dx
+      : coord.dx)
+  const dy =
+    (coord.y + conf.RADIUS > window.innerHeight || coord.y < conf.RADIUS
+      ? -coord.dy
+      : coord.dy)
+  return {
+    ...ball,
+    invincible,
+    coord: {
+      x: coord.x + dx,
+      y: coord.y + dy,
+      dx,
+      dy,
+    },
+  }
+}
+
 const mouvDebris = (bound: Size) => (ball: ObjectCercle) => {
   
   return {
@@ -64,6 +92,24 @@ const mouvDebris = (bound: Size) => (ball: ObjectCercle) => {
       y: ball.coord.y + ball.coord.dy,
     },
   }
+}
+
+const mouvBombe = (state: State, limite: number, ball: ObjectCercle) => {
+  /*console.log("New")
+  console.log(ball)
+  console.log("limite = "+limite)*/
+  if (ball.coord.y <= limite){
+    return {
+      ...ball, 
+      coord: {
+        ...ball.coord,
+        x: ball.coord.x + ball.coord.dx,
+        y: ball.coord.y + ball.coord.dy,
+      },
+    }
+  }
+
+  return ball;
 }
 
 const mouvTirD = (bound: Size) => ([i, rect]: [number, Rectangle]) => {
@@ -282,7 +328,7 @@ const collideROC = (h: Hero, oc: ObjectCercle) => {
   return (distX * distX + distY * distY) <= (cr * cr);
 };
   
-const collideHeroTir = (h: Hero, oc: Ball) => {
+const collideHeroTir = (h: Hero, oc: Ball ) => {
   const hx = h.coord.x;
   const hy = h.coord.y;
   const hw = h.hitBox.hx;
@@ -321,47 +367,15 @@ const collideHeroRect = (hero: Hero, rect: Rectangle): boolean => {
   );
 };
 
+let delayLaser = 100000
+let delayTir = 10000
+let listePosBombe = new Array(0)
+let delay = 0
+let invicible = 0
 
-const collide = (o1: Coord, o2: Coord) =>
-  dist2(o1, o2) < Math.pow(2 * conf.RADIUS, 2)
-
-const collideboing = (p1: Coord, p2: Coord) => {
-  const nx = (p2.x - p1.x) / (2 * conf.RADIUS)
-  const ny = (p2.y - p1.y) / (2 * conf.RADIUS)
-  const gx = -ny
-  const gy = nx
-
-  const v1g = gx * p1.dx + gy * p1.dy
-  const v2n = nx * p2.dx + ny * p2.dy
-  const v2g = gx * p2.dx + gy * p2.dy
-  const v1n = nx * p1.dx + ny * p1.dy
-  p1.dx = nx * v2n + gx * v1g
-  p1.dy = ny * v2n + gy * v1g
-  p2.dx = nx * v1n + gx * v2g
-  p2.dy = ny * v1n + gy * v2g
-  p1.x += p1.dx
-  p1.y += p1.dy
-  p2.x += p2.dx
-  p2.y += p2.dy
-}
-
-const collideboingS = (p1: Coord, p2:ObjectCercle) => {
-  const nx = (p2.coord.x-p1.x) / (2 * conf.RADIUS)
-  const ny = (p2.coord.y-p1.y) / (2 * conf.RADIUS)
-  const gx = -ny
-  const gy = nx
-
-  const v1g = gx * p1.dx + gy * p1.dy
-  const v1n = nx * p1.dx + ny * p1.dy
-  p1.dx -= 2 * nx  + gx * v1g
-  p1.dy -= 2 * ny  + gy * v1g
-  p1.x += p1.dx
-  p1.y += p1.dy
-  
-}
 
 export const step = (state: State) => {
-    
+
   // Gestion du délai de tir
   const shootingDelay = 60; 
 
@@ -380,10 +394,10 @@ export const step = (state: State) => {
     state.shootCooldownHero--;
   }
 
-  const triggerBoss = 10
+  const triggerBoss = conf.TOTALENNEMIE
   if(state.ennemisTues < triggerBoss){
     state.ennemisQuiTire = state.ennemisQuiTire.map(([cooldown, ennemie]:[number, Rectangle]) =>{
-      if (ennemie.coord.y == 200){
+      if (ennemie.coord.y === 200){
         if (cooldown <= 0) {
           state.tirsEnnemie.push({
             life:1,
@@ -401,8 +415,6 @@ export const step = (state: State) => {
       return [cooldown, ennemie];
     }
   )
-  
-  
     
     //Gestion du délai d'apparition d'ennemis
     const appearanceDelay = 100;
@@ -482,7 +494,7 @@ export const step = (state: State) => {
         if (collideBOC(p1.coord, c)){
           p1.life--
           c.life--
-          if(c.life==0) state.ennemisTues++
+          if(c.life===0) state.ennemisTues++
         }
       })
     })
@@ -492,13 +504,12 @@ export const step = (state: State) => {
         if (collideBOC(p1.coord, c)){
           p1.life--
           c.life--
-          if(c.life==0) state.ennemisTues++
+          if(c.life===0) state.ennemisTues++
         }
       })
     })
   
     state.tirsEnnemie.map((p) => {
-      const coordH = state.hero.coord
       if (collideHeroTir(state.hero, p)){
         p.life = 0;
         state.hero.vie --;
@@ -525,16 +536,10 @@ export const step = (state: State) => {
         if (collideEnnemieTir(r, p)){
           r.life--;
           p.life = 0;
-          if(r.life==0) state.ennemisTues++
+          if(r.life===0) state.ennemisTues++
         }
       })
     })
-  
-  
-    if(state.hero.vie == 0) {
-      state.hero.coord.x =1
-      state.endOfGame = true
-    }
   
     //Collision debri-héros
     state.debris.map((d) => {
@@ -568,29 +573,198 @@ export const step = (state: State) => {
     })
   
   }else{
-    state.debris = Array(0)
-    state.ennemisQuiTire = Array(0)
-    state.ennemisVersHero = Array(0)
-    state.ennemisSurCote = Array(0)
+    if (!state.isBoss){
+      state.isBoss = true;
+      state.debris = Array(0)
+      state.ennemisQuiTire = Array(0)
+      state.ennemisVersHero = Array(0)
+      state.ennemisSurCote = Array(0)
+      state.ennemisBoss.push({
+        coord:{
+          x: (window.innerWidth/3) + 50,
+          y: 0,
+          dx: 0,
+          dy: 0
+        },
+        width: (window.innerWidth/3-100),
+        height: 100,
+        life: conf.BOSSLIFE
+      })
+    }else {
 
+      if ((delay % 1000) === 0){
+        switch (randomInt(3)){
+          case 0 :
+            delayTir = 100
+            break
+          case 1 : 
+            listePosBombe.push(randomInt(window.innerHeight/2) + window.innerHeight/2)
+            state.bombe.push({
+              coord:{
+                x: randomInt(window.innerWidth/3 - 200) + window.innerWidth/3 + 100,
+                y: 100,
+                dx: 0,
+                dy: 2 
+              },
+              radius: 25,
+              life: 1000,
+            })
+            break
+          case 2 : 
+            delayLaser = 100
+            state.clign = true
+            
+        }
+      }
 
+      if (delayLaser === 0){
+        state.laser.push({
+          coord:{
+            x: window.innerWidth/3 + 100,
+            y: 100,
+            dx: 0,
+            dy: 0,
+          },
+          width: (window.innerWidth/3-200),
+          height: 0,
+          life: 100000,
+        })
+      }
+
+      if(delayTir === 0 || delayTir === 50 || delayTir === 100){
+        const milieu = window.innerWidth/3 + window.innerWidth/6
+        const newDx = ((state.hero.coord.x - milieu) /(state.hero.coord.y - 100))
+        state.tirsEnnemie.push({
+          life: 1,
+          coord: {
+            x: milieu,
+            y: 100,
+            dx: newDx*2,
+            dy: 2,
+          }
+        })
+      }
+     
+      state.laser.map((l) => {
+        l.height += 2
+        if (collideHeroRect(state.hero, l) && invicible <= 0){
+          invicible = 100
+          state.hero.vie --;
+        }
+      })
+
+      invicible --;
+
+      state.tirsEnnemie.map((p) => {
+        if (collideHeroTir(state.hero, p)){
+          p.life = 0;
+          state.hero.vie --;
+        }
+      })
+        
+      delay ++;
+      delayTir --;
+      delayLaser --;
+
+      state.ennemisBoss.map((b) => {
+        if (collideHeroRect(state.hero, b)){
+          state.hero.vie = 0;
+        }
+        state.tirs.map((t) => {
+          if (collideEnnemieTir(b, t)){
+            b.life--;
+            t.life = 0;
+          }
+        })
+      })
+    }
   }
 
+  if(state.hero.vie === 0) {
+      state.hero.coord.x =1
+      state.endOfGame = true
+  }
+
+  state.tirsEnnemieRebond.map((tR) => {
+    if (collideHeroTir(state.hero, tR)){
+      state.hero.vie --
+      tR.life --
+    }
+    if (collideEnnemieTir(state.ennemisBoss[0], tR)){
+      state.ennemisBoss[0].life --;
+      tR.life --
+    }
+  })
+
+  state.bombe.map((b) => {
+    if (collideROC(state.hero, b)){
+      state.hero.vie -= 2
+      b.life = 0
+    }
+
+    if (b.coord.y > listePosBombe[state.bombe.indexOf(b)]){
+      state.tirsEnnemieRebond.push({
+        life: 1,
+        invincible: 0,
+        coord: {
+          x: b.coord.x+5,
+          y: b.coord.y+5,
+          dx: 1,
+          dy: 1,
+        }
+      })
+      state.tirsEnnemieRebond.push({
+        life: 1,
+        invincible: 0,
+        coord: {
+          x: b.coord.x-5,
+          y: b.coord.y-5,
+          dx: -1,
+          dy: -1,
+        }
+      })
+      state.tirsEnnemieRebond.push({
+        life: 1,
+        invincible: 0,
+        coord: {
+          x: b.coord.x-5,
+          y: b.coord.y+5,
+          dx: -1,
+          dy: 1,
+        }
+      })
+      state.tirsEnnemieRebond.push({
+        life: 1,
+        invincible: 0,
+        coord: {
+          x: b.coord.x+5,
+          y: b.coord.y-5,
+          dx: 1,
+          dy: -1,
+        }
+      })
+    }
+  })
+
+  state.bombe = state.bombe.filter((b) => b.life > 0 && b.coord.y <= listePosBombe[state.bombe.indexOf(b)])
   
-  console.log(state.ennemisTues)
-
-  
-
-
   return {
     ...state,
     tirs: state.tirs.map(iterate(state.size)).filter((p) => p.coord.y > 0 && p.life > 0),
     tirsEnnemie: state.tirsEnnemie.map(iterate(state.size)).filter((p) => p.coord.y > 0 && p.life > 0),
+    tirsEnnemieRebond: state.tirsEnnemieRebond.map(iterateRebond()).filter((p) => p.coord.y > 0 && p.life > 0),
     debris: state.debris.map(mouvDebris(state.size)).filter((p) => p.coord.y < window.innerHeight && p.life > 0),
     ennemisQuiTire: state.ennemisQuiTire.map(mouvTirD(state.size)).filter(([_, rect]) => rect.coord.y < window.innerHeight && rect.life > 0),
     ennemisVersHero: state.ennemisVersHero.map(mouvAStar(state.size, state.hero.coord)).filter((p) => p.coord.y < window.innerHeight && p.life > 0),
     ennemisSurCote: state.ennemisSurCote.map(mouvY(state.size)).filter((p) => p.life >0 && (p.coord.x +p.width < conf.BOUNDLEFT || p.coord.x +p.width > conf.BOUNDLEFT) ),
+    ennemisBoss: state.ennemisBoss.filter((p) => p.life >0),
     endOfGame: state.endOfGame,
+    laser: state.laser.filter((l) => l.height+100 <= window.innerHeight+200),
+    bombe: state.bombe.map((b) =>{
+      const posLimite = listePosBombe[state.bombe.indexOf(b)]
+      listePosBombe.slice(listePosBombe[state.bombe.indexOf(b)])
+      return mouvBombe(state, posLimite, b)
+    }),
   }
 }
 
@@ -632,6 +806,7 @@ export const handleKeyPress =
             return state
         }
       }
+
 
 export const mouseMove =
   (state: State) =>

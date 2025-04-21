@@ -119,22 +119,45 @@ const drawHero = (
 const computeColor = (life: number, maxLife: number, baseColor: string) =>
   rgbaTorgb(baseColor, (maxLife - life) * (1 / maxLife))
 
+let delayClig = 0
+
 export const render = (ctx: CanvasRenderingContext2D) => (state: State) => {
   clear(ctx)
+
+  state.laser.map((l) =>
+    drawObjRect(ctx, l, COLORS.ORANGE)
+  )
 
   state.tirs.map( (tir) => 
     drawCirle (ctx, tir.coord, COLORS.GREEN)
   )
-  state.tirsEnnemie.map( (tir) => 
-    drawCirle (ctx, tir.coord, COLORS.ORANGE)
-  )
-
+  
   state.debris.map( (debri) =>
     drawObjCircle(ctx, debri, COLORS.RED)
   )
 
   state.ennemisQuiTire.map( (ennemie) => 
     drawObjRect(ctx, ennemie[1], COLORS.ORANGE)
+  )
+
+  state.ennemisBoss.map( (ennemie) => {
+    if (state.clign){
+      if (delayClig <= 100){
+        delayClig += 1;
+        if (delayClig %30 < 15){
+          drawObjRect(ctx, ennemie, COLORS.PURPLE);
+        }else{
+          drawObjRect(ctx, ennemie, COLORS.RED);
+        }
+      }else {
+        delayClig = 0;
+        state.clign = false;
+      }
+    }else {
+      drawObjRect(ctx, ennemie, COLORS.PURPLE);
+    }
+    
+  }
   )
 
   state.ennemisVersHero.map( (debri) =>
@@ -144,17 +167,48 @@ export const render = (ctx: CanvasRenderingContext2D) => (state: State) => {
   state.ennemisSurCote.map( (ennemie) => 
     drawObjRect(ctx, ennemie, COLORS.RED)
   )
-  
+
   drawHero(ctx, state.hero.coord, state.hero.hitBox,  0, 255, 0);
 
   state.limite.map( (w) =>
     drawWall(ctx, w, 245, 184, 135)
   )
 
-  
-  if (state.endOfGame) {
-    const text = 'END'
-    ctx.font  = '48px arial'
-    ctx.strokeText(text, state.size.width / 2 - 200, state.size.height / 2)
+  state.tirsEnnemieRebond.map((t) => {
+    drawCirle (ctx, t.coord, COLORS.RED)
+  })
+
+  const nbrKill = "Nombre de kill : "+state.ennemisTues+'/'+conf.TOTALENNEMIE;
+  ctx.font = '32px serial'
+  ctx.fillStyle = "#000000";
+  ctx.fillText(nbrKill, 0, 32)
+
+  const HpRest = "Vie :" + state.hero.vie
+  ctx.fillText(HpRest, 0, 64)
+
+  if (state.ennemisBoss.length > 0 && state.isBoss){
+    const nbrPV = ""+state.ennemisBoss[0].life+"/50"
+    ctx.fillText(nbrPV, (window.innerWidth/2)-50, 50)
   }
+  
+  state.bombe.map((b) => 
+    drawObjCircle(ctx, b, COLORS.RED)
+  )
+  
+  if (state.isBoss){
+    state.tirsEnnemie.map( (tir) => 
+      drawCirle (ctx, tir.coord, COLORS.RED)
+    )
+  }else{
+    state.tirsEnnemie.map( (tir) => 
+      drawCirle (ctx, tir.coord, COLORS.ORANGE)
+    )
+  }
+
+  if (state.endOfGame) {
+    const text = 'Perdu/Mort'
+    ctx.font  = '48px arial'
+    ctx.fillText(text, window.innerWidth/2 - 125, window.innerHeight / 2)
+  }
+
 }
