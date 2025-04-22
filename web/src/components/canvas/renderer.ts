@@ -355,7 +355,7 @@ export const render = (ctx: CanvasRenderingContext2D) => (state: State) => {
 
   const nbrKill = "Nombre de kill : "+state.ennemisTues+'/'+conf.TOTALENNEMIE;
   ctx.font = '32px serial'
-  ctx.fillStyle = "#000000";
+  ctx.fillStyle = "white";
   ctx.fillText(nbrKill, 0, 32)
 
   const HpRest = "Vie :" + state.hero.vie
