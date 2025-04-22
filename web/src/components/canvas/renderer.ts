@@ -56,7 +56,7 @@ const drawCirle = (
 }
 
 const tir = new Image()
-tir.src = '/img/Tir.png'
+tir.src = '/img/TirCorrect.png'
 
 const drawTir = (
   ctx: CanvasRenderingContext2D,
