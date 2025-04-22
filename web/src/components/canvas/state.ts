@@ -417,7 +417,7 @@ export const step = (state: State) => {
   )
     
     //Gestion du délai d'apparition d'ennemis
-    const appearanceDelay = 100;
+    const appearanceDelay = 200;
     if (state.ennemyDelay <= 0) {
       
       switch (randomInt(4)){
@@ -457,7 +457,7 @@ export const step = (state: State) => {
                 y: 0,
                 dx:0, 
                 dy:2},
-              radius : 25,
+              radius : 50,
               life : 2 // faire un truc en fonction du rayon pour la vie
             });
             break;
@@ -468,8 +468,8 @@ export const step = (state: State) => {
             state.ennemisSurCote.push(
               {coord: {
                 x: (Math.abs(s1-state.hero.coord.x) < Math.abs(s2-state.hero.coord.x))? s2 : s1 ,
-                y: state.hero.coord.y,
-                dx: (Math.abs(s1-state.hero.coord.x) < Math.abs(s2-state.hero.coord.x))? -3 : 3, 
+                y: state.hero.coord.y-(state.hero.hitBox.hy/2),
+                dx: (Math.abs(s1-state.hero.coord.x) < Math.abs(s2-state.hero.coord.x))? -1 : 1, 
                 dy:0 },
               width:100, 
               height:30, 

@@ -32,12 +32,12 @@ const Canvas = ({ height, width }: { height: number; width: number }) => {
       coord : {
         x: ((test[2].leftTop.x - test[1].rightBottom.x) /2)+ test[1].rightBottom.x,
         y: window.innerHeight - 150,
-        dx: 4,
-        dy: 4,
+        dx: 8,
+        dy: 8,
       },
       hitBox : {
-        hx: 25, 
-        hy: 25,
+        hx: 50, 
+        hy: 50,
       },
       vie: conf.PLAYERLIFE,
       force: 10,
