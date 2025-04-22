@@ -1,5 +1,5 @@
 import * as conf from './conf'
-import { State, Point, Coord } from './state'
+import { State, Point, Coord, partie, totalEn } from './state'
 const COLORS = {
   RED: '#ff0000',
   GREEN: '#00ff00',
@@ -353,17 +353,20 @@ export const render = (ctx: CanvasRenderingContext2D) => (state: State) => {
     drawTirEnnemie(ctx, t.coord)
   })
 
-  const nbrKill = "Nombre de kill : "+state.ennemisTues+'/'+conf.TOTALENNEMIE;
+  const nbrKill = "Nombre de kill : "+state.ennemisTues+'/'+totalEn;
   ctx.font = '32px serial'
   ctx.fillStyle = "white";
   ctx.fillText(nbrKill, 0, 32)
+
+  const nbrPartie = "Partie : " + partie
+  ctx.fillText(nbrPartie, 0, 96)
 
   const HpRest = "Vie :" + state.hero.vie
   ctx.fillText(HpRest, 0, 64)
 
   if (state.ennemisBoss.length > 0 && state.isBoss){
-    const nbrPV = ""+state.ennemisBoss[0].life+"/150"
-    ctx.fillText(nbrPV, (window.innerWidth/2)-50, 50)
+    const nbrPV = ""+state.ennemisBoss[0].life+"/"+conf.BOSSLIFE
+    ctx.fillText(nbrPV, (window.innerWidth/2)-50, 25)
   }
   
   state.bombe.map((b) => 

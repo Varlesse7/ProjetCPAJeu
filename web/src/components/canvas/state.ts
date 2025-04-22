@@ -372,10 +372,11 @@ let delayTir = 10000
 let listePosBombe = new Array(0)
 let delay = 0
 let invicible = 0
+export var totalEn = conf.TOTALENNEMIE
+export var partie = 0
 
 
 export const step = (state: State) => {
-
   // Gestion du délai de tir
   const shootingDelay = 60; 
 
@@ -394,8 +395,10 @@ export const step = (state: State) => {
     state.shootCooldownHero--;
   }
 
-  const triggerBoss = conf.TOTALENNEMIE
-  if(state.ennemisTues < triggerBoss){
+  console.log(state.ennemisTues)
+  console.log(totalEn)
+
+  if(state.ennemisTues < totalEn){
     state.ennemisQuiTire = state.ennemisQuiTire.map(([cooldown, ennemie]:[number, Rectangle]) =>{
       if (ennemie.coord.y === 200){
         if (cooldown <= 0) {
@@ -417,7 +420,7 @@ export const step = (state: State) => {
   )
     
     //Gestion du délai d'apparition d'ennemis
-    const appearanceDelay = 200;
+    const apparanceDelay = 250 - ( 50 * partie );
     if (state.ennemyDelay <= 0) {
       
       switch (randomInt(4)){
@@ -430,8 +433,8 @@ export const step = (state: State) => {
               y: 0,
               dx:0, 
               dy:2},
-            radius : 25,
-            life : 2 // faire un truc en fonction du rayon pour la vie
+            radius : 25 + (25*partie),
+            life : 2 + (1*partie) // faire un truc en fonction du rayon pour la vie
           });
           break;
   
@@ -445,7 +448,7 @@ export const step = (state: State) => {
               dy:1 },
             width:50, 
             height:50, 
-            life: 2 //possibilité de modifier la vie
+            life: 1 + (1* partie) //possibilité de modifier la vie
             }
           ])
           break;
@@ -457,8 +460,8 @@ export const step = (state: State) => {
                 y: 0,
                 dx:0, 
                 dy:2},
-              radius : 50,
-              life : 2 // faire un truc en fonction du rayon pour la vie
+              radius : 50 - (10 * partie),
+              life : 2 + (1 * partie) // faire un truc en fonction du rayon pour la vie
             });
             break;
   
@@ -469,7 +472,7 @@ export const step = (state: State) => {
               {coord: {
                 x: (Math.abs(s1-state.hero.coord.x) < Math.abs(s2-state.hero.coord.x))? s2 : s1 ,
                 y: state.hero.coord.y-(state.hero.hitBox.hy/2),
-                dx: (Math.abs(s1-state.hero.coord.x) < Math.abs(s2-state.hero.coord.x))? -1 : 1, 
+                dx: (Math.abs(s1-state.hero.coord.x) < Math.abs(s2-state.hero.coord.x))? -(1*partie) : (1*partie), 
                 dy:0 },
               width:100, 
               height:30, 
@@ -483,7 +486,7 @@ export const step = (state: State) => {
   
       }
       
-      state.ennemyDelay = appearanceDelay;
+      state.ennemyDelay = apparanceDelay;
     } else {
       state.ennemyDelay--;
     }
@@ -497,9 +500,6 @@ export const step = (state: State) => {
           if(c.life===0) state.ennemisTues++
         }
       })
-    })
-  
-    state.tirs.map((p1) => {
       state.ennemisVersHero.map((c) => {
         if (collideBOC(p1.coord, c)){
           p1.life--
@@ -525,20 +525,13 @@ export const step = (state: State) => {
       state.tirs.map((p)=> {
         if (collideEnnemieTir(r, p)){
           r.life--;
+          if (r.life <= 0){
+            state.ennemisTues++
+          }
           p.life = 0;
         }
       })
       
-    })
-  
-    state.ennemisQuiTire.map(([_,r]) => {
-      state.tirs.map((p)=> {
-        if (collideEnnemieTir(r, p)){
-          r.life--;
-          p.life = 0;
-          if(r.life===0) state.ennemisTues++
-        }
-      })
     })
   
     //Collision debri-héros
@@ -575,10 +568,10 @@ export const step = (state: State) => {
   }else{
     if (!state.isBoss){
       state.isBoss = true;
-      state.debris = Array(0)
-      state.ennemisQuiTire = Array(0)
-      state.ennemisVersHero = Array(0)
-      state.ennemisSurCote = Array(0)
+      state.debris = new Array(0)
+      state.ennemisQuiTire = new Array(0)
+      state.ennemisVersHero = new Array(0)
+      state.ennemisSurCote = new Array(0)
       state.ennemisBoss.push({
         coord:{
           x: (window.innerWidth/3) + 50,
@@ -587,8 +580,8 @@ export const step = (state: State) => {
           dy: 0
         },
         width: (window.innerWidth/3-100),
-        height: 100,
-        life: conf.BOSSLIFE
+        height: 150,
+        life: conf.BOSSLIFE +(50 * partie)
       })
     }else {
 
@@ -677,7 +670,20 @@ export const step = (state: State) => {
           }
         })
       })
+      if (state.ennemisBoss.length === 0 ){
+        state.ennemisTues = 0
+        state.isBoss = false
+        state.hero.vie = conf.PLAYERLIFE
+        partie ++
+        totalEn *= 2
+        state.bombe = new Array(0)
+        state.tirsEnnemieRebond = new Array(0)
+        state.tirsEnnemie = new Array(0)
+        state.laser = new Array(0)
+
+      }
     }
+
   }
 
   if(state.hero.vie === 0) {
